@@ -73,10 +73,163 @@ function is_clear_down(screen, player) {
   return ' :*'.includes(screen[y+1][x])
 }
 
-function create_closest_way(screen, player, target) {
-  let closest_way = [];
+function make_map_array(_map) {
+  let mapArray = [];
+  _map.forEach((row, x_index) => {
+    let rowArray = Array.from(row).map((cell, y_index) => {return {val: cell, x: y_index, y: x_index}});
+    mapArray.push(rowArray);
+  });
+  return mapArray;
+}
 
-  // TODO построить массив ячек кратчайшего пути.
+let _way = [];
+let moore;
+function liSearch(_source, _target, map) {
+  let targetAcheeved = false;
+  let moores = [];
+  let mooreStack = [];
+
+  function mooreWave(_source, _target, level = 0) {
+    if (targetAcheeved || !_target) return moores;
+    let moore = getMoore(_source, _target, level);
+    let {cells} = moore;
+    // console.log('cells ', cells);
+
+
+    if (cells.length) {
+      cells.forEach((cell) => mooreStack.push(cell));
+    }
+
+    if (moore.hasTarget) {
+      targetAcheeved = moore.hasTarget;
+      // console.log('Target acheeved');
+      moores.targetAcheeved = true;
+      if (moore.cells.length) {
+        moores.push(moore);
+      }
+      return moores;
+    }
+
+    if (mooreStack.length) {
+      let nextCell = mooreStack.shift();
+      mooreWave(nextCell, _target, nextCell.steps);
+    }
+
+    if (moore.cells.length) {
+      moores.push(moore);
+    }
+    return moores;
+
+  }
+  function getMoore(cell, _target, level = 0) {
+    let moore = {
+      cells: [],
+      level: level,
+      hasTarget: false
+    };
+
+    if (!cell) {
+      return moore;
+    }
+
+    let {x, y} = cell;
+    let t = x;
+    x = y;
+    y = t;
+
+    if (!level && !('steps' in cell)) {
+      // console.log('\ncell');
+      // console.log(`x: ${x} y: ${y}`);
+      // console.log(map[x][y]);
+      let cell = map[x][y];
+      cell.steps = 0;
+      moore.cells.push(cell);
+      return moore;
+    }
+
+    // console.log('cell', cell);
+    let CELLS = {
+      N: map[x] ? map[x][y-1] : null,
+      // NE: map[x+1] ? map[x+1][y-1] : null, -- Moore
+      E: map[x+1] ? map[x+1][y] : null,
+      // SE: map[x+1] ? map[x+1][y+1] : null,  -- Moore
+      S: map[x] ? map[x][y+1] : null,
+      // SW: map[x-1] ? map[x-1][y+1] : null,  -- Moore
+      W: map[x-1] ? map[x-1][y] : null
+      // NW: map[x-1] ? map[x-1][y-1] : null, -- Moore
+    }
+
+    for (let item in CELLS) {
+      let cell = CELLS[item];
+      if (cell && !('steps' in cell) ) {
+        if (cell.x === _target.x && cell.y === _target.y) {
+          moore.hasTarget = true;
+          cell.isTarget = true;
+        }
+        cell.steps = moore.level + 1;
+        moore.cells.push(cell);
+      }
+    };
+
+    moore.level++;
+    return moore;
+  }
+
+
+  function buildWay(wayMap, target) {
+    if (wayMap.length) {
+      // console.log(wayMap);
+      let currentLevel = wayMap.shift();
+      if (currentLevel.hasTarget) {
+        let targetCell = currentLevel.cells.filter((cell) => {return cell.isTarget})[0];
+        _way.push(targetCell);
+        buildWay(wayMap, targetCell);
+      } else {
+        let CELLS = [];
+        // console.log(target);
+        let {x, y} = target;
+        let {cells} = currentLevel;
+        let nextCell;
+
+        cells.forEach((cell) => {
+          if (cell.x === x && cell.y === (y - 1)) CELLS.push(cell);
+          if (cell.x === x && cell.y === (y + 1)) CELLS.push(cell);
+          if (cell.x === (x - 1) && cell.y === y) CELLS.push(cell);
+          if (cell.x === (x + 1) && cell.y === y) CELLS.push(cell);
+        });
+
+        let minLevel = currentLevel.level;
+        CELLS.forEach((cell) => {
+          Math.min(minLevel, cell.steps);
+        });
+
+        nextCell = CELLS.filter((cell) => {
+          return cell.steps === minLevel;
+        })[0];
+
+        nextCell = nextCell || target;
+
+        _way.push(nextCell);
+        buildWay(wayMap, nextCell);
+      }
+    }
+  }
+
+  moore = mooreWave(_source, _target);
+  // console.log('moore');
+  // console.log(moore);
+  let _moore = [].concat(moore);
+  let way = buildWay(_moore);
+  return _way;
+}
+
+
+function create_closest_way(screen, player, target) {
+  let mapArray = make_map_array(screen);
+  // console.log('\ntarget: ', target);
+  // console.log('player: ', player);
+  let way = liSearch(player, target, mapArray);
+  return way;
 }
 
 exports.play = function*(screen){
@@ -89,21 +242,25 @@ exports.play = function*(screen){
         }
 
         let closest_way = create_closest_way(screen, player, closest_diamant);
-        console.log('closest_way', closest_way);
+        let {x, y} = closest_way.shift();
+        console.log(player.x, player.y);
+        console.log(x, y);
+        console.log('closest_diamant ', closest_diamant);
 
-        if (closest_diamant.x > player.x && is_clear_right(screen, player)) {
+
+        if (x > player.x && is_clear_right(screen, player)) {
           yield 'r';
         }
 
-        if (closest_diamant.x < player.x && is_clear_left(screen, player)) {
+        if (x < player.x && is_clear_left(screen, player)) {
           yield 'l';
         }
 
-        if (closest_diamant.y < player.y && is_clear_up(screen, player)) {
+        if (y < player.y && is_clear_up(screen, player)) {
           yield 'u';
         }
 
-        if (closest_diamant.y > player.y && is_clear_down(screen, player)) {
+        if (y > player.y && is_clear_down(screen, player)) {
           yield 'd';
         }
     }
