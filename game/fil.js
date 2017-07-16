@@ -84,7 +84,7 @@ function make_map_array(_map) {
 
 let _way = [];
 let moore;
-function liSearch(_source, _target, map) {
+function liSearch(_source, _target, map, screen) {
   let targetAcheeved = false;
   let moores = [];
   let mooreStack = [];
@@ -161,13 +161,15 @@ function liSearch(_source, _target, map) {
 
     for (let item in CELLS) {
       let cell = CELLS[item];
-      if (cell && !('steps' in cell) ) {
+      if (cell && !('steps' in cell) && cell.val !== '+') {
         if (cell.x === _target.x && cell.y === _target.y) {
           moore.hasTarget = true;
           cell.isTarget = true;
         }
         cell.steps = moore.level + 1;
         moore.cells.push(cell);
+
+
       }
     };
 
@@ -225,11 +227,18 @@ function liSearch(_source, _target, map) {
 
 
 function create_closest_way(screen, player, target) {
-  let mapArray = make_map_array(screen);
-  // console.log('\ntarget: ', target);
-  // console.log('player: ', player);
-  let way = liSearch(player, target, mapArray);
-  return way;
+    if (global.target && target.x !== global.target.x && target.y !== global.target.y) {
+      global.way = false;
+      global.target = false;
+    }
+
+    if (!global.way) {
+      let mapArray = make_map_array(screen);
+      let way = liSearch(player, target, mapArray, screen);
+      global.way = global.way || way;
+      global.target = global.target || target;
+    }
+    return global.way;
 }
 
 exports.play = function*(screen){
@@ -242,26 +251,24 @@ exports.play = function*(screen){
         }
 
         let closest_way = create_closest_way(screen, player, closest_diamant);
-        let {x, y} = closest_way.shift();
-        console.log(player.x, player.y);
-        console.log(x, y);
-        console.log('closest_diamant ', closest_diamant);
+        let {x, y} = closest_way.pop();
 
-
-        if (x > player.x && is_clear_right(screen, player)) {
+        if (x > player.x) {
           yield 'r';
         }
 
-        if (x < player.x && is_clear_left(screen, player)) {
+        if (x < player.x) {
+          console.log('\n', x);
           yield 'l';
         }
 
-        if (y < player.y && is_clear_up(screen, player)) {
+        if (y < player.y) {
           yield 'u';
         }
 
-        if (y > player.y && is_clear_down(screen, player)) {
+        if (y > player.y) {
           yield 'd';
         }
+
     }
 };
